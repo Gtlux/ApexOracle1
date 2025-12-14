@@ -106,7 +106,12 @@ SELECT
     a.appointment_id,
     a.appointment_date,
     a.appointment_time,
-    a.appointment_date + INTERVAL '0' DAY + TO_DSINTERVAL('00:' || a.appointment_time || ':00') AS appointment_datetime,
+    -- Sujungiame datą ir laiką į vieną TIMESTAMP reikšmę
+    -- appointment_time formatas: HH24:MI (pvz., '14:30')
+    TO_TIMESTAMP(
+        TO_CHAR(a.appointment_date, 'YYYY-MM-DD') || ' ' || a.appointment_time,
+        'YYYY-MM-DD HH24:MI'
+    ) AS appointment_datetime,
     a.duration_minutes,
     a.appointment_type,
     a.status,
