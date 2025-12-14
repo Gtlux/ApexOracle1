@@ -203,12 +203,16 @@ FROM dual
 
    **Action** nustatymai (Property Editor):
    - **Identification → Type:** `Full Card` (visa kortelė paspaudžiama)
+   - **Link → Type:** `Redirect to Page in this Application`
    - **Link → Target:** Spauskite `No Link Defined`
 
-   **Link Builder** dialoge:
-   - **Type:** `Redirect to Page in this Application`
-   - **Target → Page:** `&TARGET_PAGE.` (arba įveskite stulpelio pavadinimą)
+   **Link Builder - Target** dialoge:
+   - **Page:** Įveskite stulpelio pavadinimą naudodami **&** ir **.** sintaksę: `&TARGET_PAGE.`
+   - **SVARBU:** Stulpelio pavadinimas turi tiksliai atitikti SQL užklausos alias (didžiosios/mažosios raidės nesvarbu APEX'e, bet rekomenduojama naudoti vienodą rašybą)
+   - **Alternatyva:** Galite naudoti Item substitution - pasirinkite **Item** ir įveskite `TARGET_PAGE`
    - Spauskite **OK**
+
+   > **Pastaba pagal Oracle APEX 22.1 dokumentaciją:** Kai naudojate Link Builder su Cards regionu, galite tiesiogiai nurodyti stulpelio reikšmę kaip puslapio numerį. APEX automatiškai pakeičia substitution string'us į tikras reikšmes iš SQL užklausos rezultatų.
 
 ### 3.3 Šiandienos vizitų regionas
 
@@ -341,13 +345,24 @@ Kiekvienam įrašui:
 
 ### 5.1 LOV tipai APEX 22.1
 
-Oracle APEX palaiko du LOV tipus:
-- **Static** - reikšmės įvedamos rankiniu būdu (Display Value / Return Value poros)
-- **Dynamic** - reikšmės gaunamos iš SQL užklausos
+> **Pagal Oracle APEX 22.1 oficialią dokumentaciją:**
+> LOV (List of Values) yra statinė arba dinaminė reikšmių sąrašo apibrėžtis, naudojama puslapio elementuose kaip Select List, Popup LOV, Checkbox, Radio Group ar Multiple Select List.
+>
+> Šaltinis: [Creating Lists of Values at the Application-Level](https://docs.oracle.com/en/database/oracle/apex/22.1/htmdb/creating-lists-of-values-at-the-application-level.html)
+
+Oracle APEX 22.1 palaiko du LOV tipus:
+- **Static** - reikšmės įvedamos rankiniu būdu (Display Value / Return Value poros). Naudokite kai reikšmių sąrašas mažas ir nesikeičia (pvz., lytis, būsenos).
+- **Dynamic** - reikšmės gaunamos iš SQL užklausos. Naudokite kai duomenys turi būti aktualūs iš duomenų bazės.
+
+**Privalumai kuriant LOV kaip Shared Component:**
+- Galite pakartotinai naudoti bet kuriame puslapyje
+- Visi LOV apibrėžimai saugomi vienoje vietoje
+- Lengva atnaujinti - pakeitimas taikomas visur
+- Palaiko multi-column, icon ir grouping funkcionalumą
 
 ### 5.2 Static LOV kūrimas
 
-**Navigacija:** Shared Components → Other Components → **List of Values** → **Create**
+**Navigacija:** Application Builder → Jūsų aplikacija → **Shared Components** → Other Components → **List of Values** → **Create**
 
 #### LOV 1: LYTIS_LOV (Static)
 
@@ -548,7 +563,23 @@ ORDER BY medication_name
 
 #### LOV 18: LAISVOS_LOVOS_LOV (Dynamic - Cascading)
 
-**Svarbu:** Šis LOV priklauso nuo pasirinkto skyriaus (Cascading LOV)
+> **Cascading LOV (Kaskadinis LOV) pagal Oracle APEX 22.1 dokumentaciją:**
+>
+> Cascading LOV reiškia, kad vieno puslapio elemento (child) reikšmių sąrašas atsinaujina kai pasikeičia kito elemento (parent) reikšmė.
+>
+> **Kaip veikia:**
+> - Kai vartotojas pakeičia parent elemento reikšmę, APEX automatiškai:
+>   1. Nusiunčia naują parent reikšmę į serverį
+>   2. Vykdo child LOV SQL užklausą su nauja parent reikšme
+>   3. Atnaujina child elemento reikšmių sąrašą
+>   4. Nustato child reikšmę į NULL (arba default reikšmę)
+>
+> **Konfigūracija puslapio elemente:**
+> - Child elemento **List of Values → Cascading LOV Parent Item(s):** nurodyti parent elementą (pvz., `P17_DEPARTMENT_ID`)
+>
+> Šaltinis: [Cascading LOV Parent Item(s)](https://docs.oracle.com/en/database/oracle/apex/22.1/htmdb/)
+
+**Šis LOV priklauso nuo pasirinkto skyriaus (Cascading LOV)**
 
 ```sql
 SELECT r.room_number || ' - Lova ' || b.bed_number ||
@@ -564,6 +595,8 @@ WHERE b.bed_status = 'AVAILABLE'
 AND r.department_id = NVL(:P17_DEPARTMENT_ID, r.department_id)
 ORDER BY r.room_number, b.bed_number
 ```
+
+> **SVARBU:** Kai naudojate Cascading LOV, parent elemento reikšmė automatiškai įtraukiama į SQL užklausą. Nereikia kurti atskiro Dynamic Action - APEX tai daro automatiškai kai nustatytas **Cascading LOV Parent Item(s)** atributas.
 
 ---
 
@@ -693,7 +726,18 @@ AND (:P5_SEARCH IS NULL OR
 ```
 
 6. Nustatykite **Page Items to Submit:** `P5_SEARCH,P5_FILTER_ACTIVE,P5_FILTER_BLOOD_TYPE`
-   - Interactive Report → **Source** sekcija → **Page Items to Submit**
+   - Interactive Report regionas → **Source** sekcija → **Page Items to Submit**
+
+> **Pagal Oracle APEX 22.1 dokumentaciją**, **Page Items to Submit** atributas nurodo kurie puslapio elementai turi būti pateikiami į serverį kai regionas yra atnaujinamas (refresh).
+>
+> **Kodėl tai svarbu:**
+> - SQL užklausa naudoja bind kintamuosius (pvz., `:P5_SEARCH`)
+> - APEX turi žinoti kuriuos elementus įtraukti į Ajax užklausą
+> - Be šio nustatymo, filtravimas neveiks nes APEX nežinos elementų reikšmių
+>
+> **Sintaksė:** Elementų sąrašas atskirtas kableliais, be tarpų: `P5_SEARCH,P5_FILTER_ACTIVE,P5_FILTER_BLOOD_TYPE`
+>
+> Šaltinis: [Using Interactive Report Filters](https://docs.oracle.com/en/database/oracle/apex/22.1/aeeug/using-interactive-report-filters.html)
 
 #### Mygtukų pridėjimas
 
@@ -753,8 +797,16 @@ Kiekvienam laukui nustatykite:
 - **Label:** `Gimimo data`
 - **Validation → Value Required:** `Yes`
 - **Appearance → Template:** `Required`
-- **Minimum Date:** `1900-01-01`
-- **Maximum Date:** `&APP_SYSDATE.` (šiandienos data)
+- **Settings → Minimum Date:** `-125y` (santykinė reikšmė: 125 metai atgal nuo šiandien)
+- **Settings → Maximum Date:** `0d` (santykinė reikšmė: šiandiena)
+
+> **Pagal Oracle APEX 22.1 dokumentaciją**, Date Picker Minimum/Maximum Date palaiko šiuos formatus:
+> - **Absoliutus:** `YYYY-MM-DDTHH24:MI:SS` arba `YYYYMMDDHH24MI` (pvz., `1900-01-01T00:00:00`)
+> - **Santykinis:** naudojant `y` (metai), `m` (mėnesiai), `w` (savaitės), `d` (dienos)
+>   - Pavyzdžiai: `+1y+1m` (po 1 metų ir 1 mėnesio), `-1m-1w` (prieš 1 mėnesį ir 1 savaitę), `0d` (šiandien)
+> - **Substitution:** `&P1_MY_DATE.` (puslapio elemento reikšmė)
+>
+> Šaltinis: [Oracle APEX Date Picker Documentation](https://docs.oracle.com/en/database/oracle/apex/22.1/htmdb/)
 
 **P6_GENDER:**
 - **Type:** `Select List`
@@ -815,23 +867,34 @@ Kiekvienam laukui nustatykite:
 
 #### Validacijų pridėjimas
 
+> **Pagal Oracle APEX 22.1 dokumentaciją**, validacijos tipas "PL/SQL Function (returning Boolean)" turi grąžinti:
+> - `TRUE` - validacija sėkminga (nėra klaidos)
+> - `FALSE` - validacija nesėkminga (rodoma klaidos pranešimas)
+>
+> **Associated Item** nustačius, APEX automatiškai rodo "Go to Error" nuorodą šalia klaidos pranešimo.
+>
+> Šaltinis: [Understanding Validations](https://docs.oracle.com/database/121/HTMDB/bldr_validate.htm)
+
 **Validacija: Email formatas**
 
-1. **Processing** skydelyje dešiniuoju spauskite **Validating** → **Create Validation**
-2. Užpildykite:
-   - **Name:** `V_EMAIL_FORMAT`
-   - **Type:** `PL/SQL Function (returning Boolean)`
-   - **PL/SQL Function Body:**
+1. **Processing** skydelyje (kairėje pusėje) dešiniuoju spauskite **Validating** → **Create Validation**
+2. Užpildykite Property Editor:
+   - **Identification → Name:** `V_EMAIL_FORMAT`
+   - **Identification → Type:** `PL/SQL Function (returning Boolean)`
+   - **Validation → PL/SQL Function Body:**
 ```sql
+-- Grąžiname TRUE jei el. paštas tuščias arba formatas teisingas
+-- Grąžiname FALSE jei formatas neteisingas
 IF :P6_EMAIL IS NULL THEN
-    RETURN TRUE;
+    RETURN TRUE;  -- Laukas neprivalomas, todėl tuščia reikšmė OK
 ELSE
     RETURN REGEXP_LIKE(:P6_EMAIL, '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$');
 END IF;
 ```
-   - **Error Message:** `Neteisingas el. pašto formatas (pvz., vardas@domenas.lt)`
-   - **Associated Item:** `P6_EMAIL`
-   - **Error Display Location:** `Inline with Field`
+   - **Error → Error Message:** `Neteisingas el. pašto formatas (pvz., vardas@domenas.lt)`
+   - **Error → Display Location:** `Inline with Field`
+   - **Condition → Associated Item:** `P6_EMAIL`
+   - **Execution → Always Execute:** `No` (validacija vykdoma tik kai mygtukas turi Execute Validations = Yes)
 
 **Validacija: Gimimo data ne ateityje**
 
@@ -861,37 +924,81 @@ RETURN REGEXP_LIKE(:P6_PHONE_NUMBER, '^\+?[0-9\s\-]{9,20}$');
 
 #### Procesų konfigūravimas
 
+> **Pagal Oracle APEX 22.1 dokumentaciją**, Form Region naudoja du pagrindinius procesus:
+> 1. **Form - Initialization** - duomenų užkrovimas iš duomenų bazės į formos laukus
+> 2. **Form - Automatic Row Processing (DML)** - INSERT, UPDATE, DELETE operacijos
+>
+> Šie procesai automatiškai sukuriami kai naudojate Create Page Wizard su Form tipo puslapiu.
+> Šaltinis: [Understanding Page Processes](https://docs.oracle.com/en/database/oracle/apex/22.2/htmdb/understanding-page-processes.html)
+
 Patikrinkite, kad yra šie procesai (jei ne - sukurkite):
 
-**Process: Initialize form** (Fetch Row)
-- **Type:** `Form - Initialization`
-- **Form Region:** Pasirinkite formą
+**Process: Initialize form** (Pre-Rendering sekcijoje)
+- **Identification → Name:** `Initialize form Paciento duomenys`
+- **Identification → Type:** `Form - Initialization`
+- **Settings → Form Region:** Pasirinkite formą (pvz., `Paciento duomenys`)
+- **Execution → Sequence:** `10`
+- **Execution → Point:** `Before Regions`
 
-**Process: Process form** (DML)
-- **Type:** `Form - Automatic Row Processing (DML)`
-- **Form Region:** Pasirinkite formą
-- **Success Message:** `Paciento duomenys išsaugoti.`
-- **Error Message:** `Nepavyko išsaugoti paciento duomenų.`
+**Process: Process form** (Processing sekcijoje → Processes)
+- **Identification → Name:** `Process form Paciento duomenys`
+- **Identification → Type:** `Form - Automatic Row Processing (DML)`
+- **Settings → Form Region:** Pasirinkite formą
+- **Settings → Lock Row:** `Yes` (apsauga nuo lost updates)
+- **Success Message → Success Message:** `Paciento duomenys sėkmingai išsaugoti.`
+- **Error → Error Message:** `Klaida: nepavyko išsaugoti paciento duomenų.`
+
+> **SVARBU:** APEX 19.1+ versijose Form Region yra naujas regionų tipas. Senasis "Automatic Row Fetch" ir "Automatic Row Processing (DML)" procesų tipas yra deprecated. Naudokite "Form - Initialization" ir "Form - Automatic Row Processing (DML)" tipus.
 
 #### Mygtukų konfigūravimas
 
-**Mygtukas SAVE:**
-- **Label:** `Išsaugoti`
-- **Action:** `Submit Page`
-- **Hot:** `Yes`
-- **Database Action:** `SQL INSERT action` (naujiems) / `SQL UPDATE action` (esamiems)
+> **Pagal Oracle APEX 22.1 dokumentaciją**, mygtuko nustatymai:
+> - **Action: Submit Page** - pateikia puslapį su REQUEST reikšme lygia mygtuko vardui
+> - **Hot:** `Yes` - mygtukas rodomas pabrėžtai (primary button stilius)
+> - **Database Action** - nurodo kokią DML operaciją atlikti (naudojama su Form - Automatic Row Processing)
+>
+> Šaltinis: [Managing Buttons](https://docs.oracle.com/database/apex-18.1/HTMDB/creating-buttons.htm)
+
+**Mygtukas SAVE (CREATE):**
+- **Identification → Button Name:** `SAVE` arba `CREATE`
+- **Identification → Label:** `Išsaugoti`
+- **Layout → Position:** `Create` (arba `Change` priklausomai nuo šablono)
+- **Behavior → Action:** `Submit Page`
+- **Behavior → Execute Validations:** `Yes`
+- **Behavior → Database Action:** `SQL INSERT action`
+- **Appearance → Hot:** `Yes`
+- **Server-side Condition → Type:** `Item is NULL`
+- **Server-side Condition → Item:** `P6_PATIENT_ID` (rodomas tik kuriant naują įrašą)
+
+**Mygtukas SAVE (UPDATE):**
+- **Identification → Button Name:** `SAVE`
+- **Identification → Label:** `Išsaugoti pakeitimus`
+- **Behavior → Action:** `Submit Page`
+- **Behavior → Database Action:** `SQL UPDATE action`
+- **Appearance → Hot:** `Yes`
+- **Server-side Condition → Type:** `Item is NOT NULL`
+- **Server-side Condition → Item:** `P6_PATIENT_ID` (rodomas tik redaguojant)
 
 **Mygtukas CANCEL:**
-- **Label:** `Atšaukti`
-- **Action:** `Redirect to Page in this Application`
-- **Target → Page:** `5`
+- **Identification → Button Name:** `CANCEL`
+- **Identification → Label:** `Atšaukti`
+- **Behavior → Action:** `Redirect to Page in this Application`
+- **Behavior → Target → Page:** `5`
+- **Behavior → Execute Validations:** `No`
 
 **Mygtukas DELETE:**
-- **Label:** `Ištrinti`
-- **Action:** `Submit Page`
-- **Condition → Type:** `Item is NOT NULL`
-- **Condition → Item:** `P6_PATIENT_ID`
-- **Confirmation Message:** `Ar tikrai norite ištrinti šį pacientą?`
+- **Identification → Button Name:** `DELETE`
+- **Identification → Label:** `Ištrinti`
+- **Behavior → Action:** `Submit Page`
+- **Behavior → Database Action:** `SQL DELETE action`
+- **Behavior → Execute Validations:** `No`
+- **Appearance → Hot:** `No`
+- **Appearance → Template Options:** `Danger` (raudonas mygtukas)
+- **Server-side Condition → Type:** `Item is NOT NULL`
+- **Server-side Condition → Item:** `P6_PATIENT_ID`
+- **Advanced → Confirmation Message:** `Ar tikrai norite ištrinti šį pacientą? Šis veiksmas negrįžtamas.`
+
+> **SVARBU:** Database Action atributas nurodo **Form - Automatic Row Processing (DML)** procesui kokią operaciją atlikti. Jei naudojate tą patį SAVE mygtuką ir INSERT ir UPDATE operacijoms, nustatykite Database Action į `- Select -` ir procesas pats nustatys operacijos tipą pagal Primary Key reikšmę.
 
 ---
 
@@ -988,6 +1095,12 @@ ORDER BY appointment_date DESC, appointment_time
 
 #### Kalendoriaus konfigūravimas
 
+> **Pagal Oracle APEX 22.1 dokumentaciją**, Kalendoriaus regionas reikalauja šių stulpelių:
+> - **Primary Key** - unikalus įvykio identifikatorius
+> - **Display Column** - tekstas rodomas kalendoriuje
+> - **Start Date Column** - įvykio pradžios data/laikas (DATE arba TIMESTAMP tipas)
+> - **End Date Column** - įvykio pabaigos data/laikas (neprivaloma)
+
 1. Atidarykite Page 11 Page Designer
 2. Pasirinkite **Calendar** regioną
 3. **Source → SQL Query** (pakeiskite į):
@@ -995,11 +1108,15 @@ ORDER BY appointment_date DESC, appointment_time
 ```sql
 SELECT
     appointment_id,
+    -- Pradžios data: sujungiame datą ir laiką į vieną DATE reikšmę
     TO_DATE(TO_CHAR(appointment_date, 'YYYY-MM-DD') || ' ' || appointment_time,
             'YYYY-MM-DD HH24:MI') AS start_date,
+    -- Pabaigos data: pridedame trukmę minutėmis naudojant NUMTODSINTERVAL
     TO_DATE(TO_CHAR(appointment_date, 'YYYY-MM-DD') || ' ' || appointment_time,
-            'YYYY-MM-DD HH24:MI') + (duration_minutes / 1440) AS end_date,
+            'YYYY-MM-DD HH24:MI') + NUMTODSINTERVAL(duration_minutes, 'MINUTE') AS end_date,
+    -- Rodomas tekstas
     patient_name || ' - ' || doctor_name AS title,
+    -- Spalvinis kodavimas (naudojamas CSS klasės)
     status_color AS css_class,
     appointment_id AS pk_value
 FROM v_appointments_calendar
@@ -1007,35 +1124,58 @@ WHERE (:P11_DOCTOR_ID IS NULL OR doctor_id = :P11_DOCTOR_ID)
 AND (:P11_DEPARTMENT_ID IS NULL OR department_id = :P11_DEPARTMENT_ID)
 ```
 
-4. **Attributes** sekcijoje:
+> **Pastaba:** `NUMTODSINTERVAL(duration_minutes, 'MINUTE')` yra rekomenduojamas būdas pridėti minutės intervalu Oracle SQL. Alternatyva `+ (duration_minutes / 1440)` taip pat veikia (1440 = minučių per dieną).
+
+4. **Attributes** sekcijoje (Property Editor):
+   - **Identification → Static ID:** `vizitu_kalendorius` (naudinga JavaScript/Dynamic Actions)
    - **Settings → Primary Key Column:** `APPOINTMENT_ID`
    - **Settings → Display Column:** `TITLE`
    - **Settings → Start Date Column:** `START_DATE`
    - **Settings → End Date Column:** `END_DATE`
+   - **Settings → CSS Class Column:** `CSS_CLASS` (jei norite spalvinio kodavimo)
 
 5. **Settings → Drag and Drop:** `Yes`
-6. **Settings → Create Link:**
+6. **Settings → Create Link:** (kai vartotojas spaudžia tuščią vietą kalendoriuje)
    - **Target → Page:** `12`
    - **Set Items → Name:** `P12_APPOINTMENT_DATE`
    - **Set Items → Value:** `&APEX$NEW_START_DATE.`
 
+> **APEX$NEW_START_DATE pastaba:** Kai vartotojas spaudžia ant tuščios kalendoriaus vietos, `&APEX$NEW_START_DATE.` grąžina pasirinktos datos/laiko reikšmę formatu `YYYYMMDDHH24MISS`.
+
 #### Drag & Drop konfigūravimas
+
+> **SVARBU pagal Oracle APEX 22.1 oficialią dokumentaciją:**
+> Kalendoriaus drag & drop funkcionalumas naudoja šiuos specialius bind kintamuosius:
+> - `:APEX$PK_VALUE` - perkėlamo įvykio pirminis raktas (Primary Key)
+> - `:APEX$NEW_START_DATE` - nauja pradžios data
+> - `:APEX$NEW_END_DATE` - nauja pabaigos data
+>
+> **Datos formatas BŪTINAI turi būti `YYYYMMDDHH24MISS` (14 simbolių, įskaitant sekundes).**
+> Pavyzdžiui: `20251214143000` reiškia 2025-12-14 14:30:00
+>
+> Šaltinis: [Managing Calendar Attributes](https://docs.oracle.com/en/database/oracle/apex/22.1/htmdb/managing-calendar-attributes.html)
 
 1. **Attributes → Settings → Edit Link:**
    - **Target → Page:** `12`
    - **Set Items → Name:** `P12_APPOINTMENT_ID`
    - **Set Items → Value:** `&APPOINTMENT_ID.`
 
-2. **Attributes → Settings → Drag and Drop → PL/SQL Code:**
+2. **Attributes → Settings → Drag and Drop:** `Yes`
+
+3. **Attributes → Settings → Drag and Drop → PL/SQL Code:**
 
 ```sql
 BEGIN
+    -- Atnaujinti vizito datą ir laiką kai vartotojas perkelia įvykį kalendoriuje
+    -- :APEX$NEW_START_DATE formatas yra YYYYMMDDHH24MISS (pvz., 20251214143000)
     UPDATE appointments
     SET appointment_date = TRUNC(TO_DATE(:APEX$NEW_START_DATE, 'YYYYMMDDHH24MISS')),
         appointment_time = TO_CHAR(TO_DATE(:APEX$NEW_START_DATE, 'YYYYMMDDHH24MISS'), 'HH24:MI')
     WHERE appointment_id = :APEX$PK_VALUE;
 END;
 ```
+
+> **Dažna klaida:** Nenaudokite formato `YYYYMMDDHH24MI` (be sekundžių) - tai sukels klaidą!
 
 #### Filtravimo laukų pridėjimas
 
@@ -1114,6 +1254,13 @@ Error: `Laikas turi būti formatu HH:MI (pvz., 14:30)`
 
 ## 9. HOSPITALIZACIJOS MASTER-DETAIL MODULIS
 
+> **Pagal Oracle APEX 22.1 dokumentaciją** Master-Detail formos tipai:
+> - **Stacked** - Master ir Detail regionai vienas po kito
+> - **Drill Down** - Master sąrašas su nuoroda į atskirą Detail puslapį
+> - **Side by Side** - Kairėje pusėje master navigacija, dešinėje - master forma ir detail regionai
+>
+> Šaltinis: [Creating Master Detail Forms](https://docs.oracle.com/en/database/oracle/apex/22.1/htmdb/managing-master-detail-forms.html)
+
 ### 9.1 Master-Detail puslapio sukūrimas (Page 15)
 
 #### Puslapio sukūrimas per Wizard
@@ -1122,7 +1269,7 @@ Error: `Laikas turi būti formatu HH:MI (pvz., 14:30)`
 2. **Page Type:** `Component`
 3. Pasirinkite **Master Detail**
 4. Pasirinkite formatą:
-   - **Side by Side** - rekomenduojama mūsų atveju
+   - **Side by Side** - rekomenduojama hospitalizacijos moduliui (kairėje - priėmimų sąrašas, dešinėje - detalės)
 5. **Next**
 6. **Page Attributes:**
    - **Page Number:** `15`
@@ -1132,15 +1279,32 @@ Error: `Laikas turi būti formatu HH:MI (pvz., 14:30)`
 8. **Navigation:** Prijunkite prie meniu "Aktyvūs priėmimai"
 9. **Next**
 10. **Master Source:**
+    - **Data Source:** `Local Database`
     - **Table/View:** `ADMISSIONS`
-    - **Primary Key Column:** `ADMISSION_ID`
+    - **Primary Key Column 1:** `ADMISSION_ID`
 11. **Next**
-12. **Detail Tables:** Pridėkite detail lenteles:
-    - **Table 1:** `PATIENT_DIAGNOSES` (FK: `PATIENT_ID`)
-    - **Table 2:** `PRESCRIPTIONS` (FK: `PATIENT_ID`)
-    - **Table 3:** `LAB_TESTS` (FK: `PATIENT_ID`)
-    - **Table 4:** `BILLS` (FK: `PATIENT_ID`)
+12. **Detail Tables:**
+
+> **SVARBU:** Pasirinkite **Show Only Related Tables** `No`, kad matytumėte visas lenteles.
+> Detail lentelės turi turėti Foreign Key ryšį su Master lentele arba galite nurodyti ryšio stulpelį rankiniu būdu.
+
+**Mūsų scenarijus:** ADMISSIONS lentelė turi `PATIENT_ID` ir `ADMISSION_ID`. Detail lentelės:
+- **PATIENT_DIAGNOSES** - siejama per `PATIENT_ID` (paciento diagnozės)
+- **PRESCRIPTIONS** - siejama per `PATIENT_ID` (paciento receptai)
+- **LAB_TESTS** - siejama per `PATIENT_ID` (paciento tyrimai)
+- **BILLS** - siejama per `ADMISSION_ID` (priėmimo sąskaitos) **arba** `PATIENT_ID`
+
+**Detail lentelių pridėjimas:**
+| Detail Table | Foreign Key Column | Master Relationship |
+|--------------|-------------------|---------------------|
+| PATIENT_DIAGNOSES | PATIENT_ID | Ryšys per ADMISSIONS.PATIENT_ID |
+| PRESCRIPTIONS | PATIENT_ID | Ryšys per ADMISSIONS.PATIENT_ID |
+| LAB_TESTS | PATIENT_ID | Ryšys per ADMISSIONS.PATIENT_ID |
+| BILLS | ADMISSION_ID | Tiesioginis ryšys su ADMISSIONS.ADMISSION_ID |
+
 13. Spauskite **Create Page**
+
+> **Pastaba:** Jei nematote norimos detail lentelės, įsitikinkite kad **Show Only Related Tables** yra `No` arba patikrinkite ar lentelėje yra Foreign Key į master lentelę.
 
 #### Master formos konfigūravimas
 
@@ -1408,12 +1572,27 @@ WHERE (:P27_DEPARTMENT_ID IS NULL OR department_id = :P27_DEPARTMENT_ID)
 ORDER BY department_name, room_number, bed_number
 ```
 
-6. **Attributes:**
-   - **Card → Primary Key Column:** `BED_ID`
-   - **Title Column:** `TITLE`
-   - **Subtitle Column:** `SUBTITLE`
+6. **Attributes** sekcijoje (Property Editor):
+
+> **Pagal Oracle APEX 22.1 dokumentaciją**, Cards regiono atributai:
+> - **Primary Key Column** - privalomas, naudojamas identifikuoti kiekvieną kortelę
+> - **Title, Subtitle, Body** - rodoma informacija kortelėje
+> - **CSS Classes Column** - leidžia dinamiškai keisti kortelės stilių
+>
+> Šaltinis: [Editing Cards Region Attributes](https://docs.oracle.com/en/database/oracle/apex/22.1/htmdb/editing-cards-region-attributes.html)
+
+   - **Card → Primary Key Column 1:** `BED_ID`
+   - **Title → Column:** `TITLE`
+   - **Subtitle → Column:** `SUBTITLE`
    - **Body → Column:** `BODY`
-   - **Appearance → CSS Classes Column:** `CARD_MODIFIERS`
+   - **Appearance → Card CSS Classes Column:** `CARD_MODIFIERS`
+   - **Appearance → Layout:** `Grid` (arba `Float` priklausomai nuo dizaino)
+
+> **Pastaba apie CSS klases:** APEX Universal Theme palaiko šias kortelių klases:
+> - `a-CardView-card--success` - žalia (laisva lova)
+> - `a-CardView-card--danger` - raudona (užimta lova)
+> - `a-CardView-card--warning` - oranžinė (remontuojama)
+> - `a-CardView-card--info` - mėlyna (rezervuota)
 
 ---
 
@@ -1493,15 +1672,48 @@ ORDER BY department_name, room_number, bed_number
 
 ## ŠALTINIAI
 
-- [Oracle APEX 22.1 Documentation - Creating Lists of Values](https://docs.oracle.com/en/database/oracle/apex/22.1/htmdb/creating-lists-of-values-at-the-application-level.html)
-- [Oracle APEX 22.1 - Creating Master Detail Forms](https://docs.oracle.com/en/database/oracle/apex/22.1/htmdb/managing-master-detail-forms.html)
-- [Oracle APEX 22.1 - Understanding Validations](https://docs.oracle.com/en/database/oracle/apex/22.1/htmdb/understanding-validations.html)
-- [Oracle APEX 22.1 - Using Interactive Report Filters](https://docs.oracle.com/en/database/oracle/apex/22.1/aeeug/using-interactive-report-filters.html)
-- [Oracle APEX Beginners Guide - List of Values](https://blogs.oracle.com/apex/beginners-guide-to-list-of-values-in-oracle-apex)
-- [Cards Region in Oracle APEX](https://blogs.oracle.com/apex/a-simple-guide-to-the-new-cards-region-in-apex-202)
-- [Universal Theme - Tabs and Region Display Selector](https://apex.oracle.com/pls/apex/r/apex_pm/ut/tabs-and-region-display-selector)
+### Oficiali Oracle APEX 22.1 Dokumentacija
+
+- [Oracle APEX 22.1 - Creating Lists of Values](https://docs.oracle.com/en/database/oracle/apex/22.1/htmdb/creating-lists-of-values-at-the-application-level.html) - LOV kūrimas
+- [Oracle APEX 22.1 - Creating Master Detail Forms](https://docs.oracle.com/en/database/oracle/apex/22.1/htmdb/managing-master-detail-forms.html) - Master-Detail formos
+- [Oracle APEX 22.1 - Managing Calendar Attributes](https://docs.oracle.com/en/database/oracle/apex/22.1/htmdb/managing-calendar-attributes.html) - Kalendorius ir Drag & Drop
+- [Oracle APEX 22.1 - Understanding Validations](https://docs.oracle.com/en/database/oracle/apex/22.1/htmdb/understanding-validations.html) - Validacijos
+- [Oracle APEX 22.1 - Using Interactive Report Filters](https://docs.oracle.com/en/database/oracle/apex/22.1/aeeug/using-interactive-report-filters.html) - IR filtravimas
+- [Oracle APEX 22.1 - Editing Cards Region Attributes](https://docs.oracle.com/en/database/oracle/apex/22.1/htmdb/editing-cards-region-attributes.html) - Cards regionas
+- [Oracle APEX 22.1 - Using Actions to Link from Cards Page](https://docs.oracle.com/en/database/oracle/apex/22.1/htmdb/using-actions-to-link-from-cards-page.html) - Cards nuorodos
+- [Oracle APEX 22.1 - Understanding Page Processes](https://docs.oracle.com/en/database/oracle/apex/22.2/htmdb/understanding-page-processes.html) - Form procesai
+- [Oracle APEX 22.1 - Linking to Interactive Reports](https://docs.oracle.com/en/database/oracle/apex/22.1/htmdb/linking-to-interactive-reports.html) - IR nuorodos
+- [Oracle APEX 22.1 - Managing Buttons](https://docs.oracle.com/database/apex-18.1/HTMDB/creating-buttons.htm) - Mygtukai
+
+### Oracle APEX Blog ir Bendruomenė
+
+- [Beginners Guide to List of Values in Oracle APEX](https://blogs.oracle.com/apex/beginners-guide-to-list-of-values-in-oracle-apex) - LOV pradedantiesiems
+- [A Simple Guide to the New Cards Region in APEX 20.2](https://blogs.oracle.com/apex/a-simple-guide-to-the-new-cards-region-in-apex-202) - Cards regionas
+- [Universal Theme](https://apex.oracle.com/pls/apex/r/apex_pm/ut/) - APEX stiliai ir šablonai
+
+### Papildomi šaltiniai
+
+- [Oracle APEX 22.1 Release Notes](https://apex.oracle.com/en/learn/documentation/release-notes/) - Versijos naujovės
+- [Oracle APEX Community](https://forums.oracle.com/ords/apexds/domain/dev-community) - Bendruomenės forumas
 
 ---
 
 *Dokumentas sukurtas: 2025-12-14*
+*Dokumentas atnaujintas: 2025-12-14 (pataisytos klaidos pagal oficialią Oracle APEX 22.1.0 dokumentaciją)*
 *Oracle APEX versija: 22.1.0*
+
+### Atnaujinimų istorija
+
+| Data | Pakeitimai |
+|------|-----------|
+| 2025-12-14 | Pirminė versija |
+| 2025-12-14 | Pataisytas Calendar Drag & Drop datos formatas (YYYYMMDDHH24MISS) |
+| 2025-12-14 | Pataisyta Date Picker Minimum/Maximum Date konfigūracija |
+| 2025-12-14 | Pataisyta Cards Action konfigūracija su Link Builder |
+| 2025-12-14 | Pataisyta Form Process konfigūracija (Form - Initialization, Form - Automatic Row Processing) |
+| 2025-12-14 | Pridėta išsami Cascading LOV dokumentacija |
+| 2025-12-14 | Pataisyta Master-Detail detail lentelių konfigūracija |
+| 2025-12-14 | Pridėta Page Items to Submit paaiškinimas |
+| 2025-12-14 | Pataisyta validacijų konfigūracija |
+| 2025-12-14 | Pataisyta mygtukų (Buttons) konfigūracija su Database Action |
+| 2025-12-14 | Pridėtos nuorodos į oficialią Oracle APEX 22.1 dokumentaciją |
