@@ -871,6 +871,11 @@ Kiekvienam laukui nustatykite:
 > - `TRUE` - validacija sėkminga (nėra klaidos)
 > - `FALSE` - validacija nesėkminga (rodoma klaidos pranešimas)
 >
+> **SVARBU - kad validacija veiktų:**
+> 1. **Mygtukas** turi turėti: **Behavior → Execute Validations: `Yes`**
+> 2. **Validacija** turi turėti: **Execution → When Button Pressed: `- Select -`** (tuščias = visiems)
+> 3. **Validacija** turi turėti: **Execution → Always Execute: `Yes`** (arba `No` jei norite sąlyginio vykdymo)
+>
 > **Associated Item** nustačius, APEX automatiškai rodo "Go to Error" nuorodą šalia klaidos pranešimo.
 >
 > Šaltinis: [Understanding Validations](https://docs.oracle.com/database/121/HTMDB/bldr_validate.htm)
@@ -883,17 +888,23 @@ Kiekvienam laukui nustatykite:
    - **Identification → Type:** `PL/SQL Function (returning Boolean)`
    - **Validation → PL/SQL Function Body:**
 ```sql
--- Grąžiname TRUE jei el. paštas tuščias arba formatas teisingas
--- Grąžiname FALSE jei formatas neteisingas
-IF :P6_EMAIL IS NULL THEN
-    RETURN TRUE;  -- Laukas neprivalomas, todėl tuščia reikšmė OK
-ELSE
-    RETURN REGEXP_LIKE(:P6_EMAIL, '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$');
-END IF;
+BEGIN
+    -- Grąžiname TRUE jei el. paštas tuščias arba formatas teisingas
+    -- Grąžiname FALSE jei formatas neteisingas
+    IF :P6_EMAIL IS NULL THEN
+        RETURN TRUE;
+    ELSIF REGEXP_LIKE(:P6_EMAIL, '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$') THEN
+        RETURN TRUE;
+    ELSE
+        RETURN FALSE;
+    END IF;
+END;
 ```
    - **Error → Error Message:** `Neteisingas el. pašto formatas (pvz., vardas@domenas.lt)`
    - **Error → Display Location:** `Inline with Field`
-   - **Condition → Associated Item:** `P6_EMAIL`
+   - **Error → Associated Item:** `P6_EMAIL`
+   - **Execution → Sequence:** `10`
+   - **Execution → When Button Pressed:** `- Select -` (palikti tuščią - veiks visiems mygtukams)
    - **Execution → Always Execute:** `No` (validacija vykdoma tik kai mygtukas turi Execute Validations = Yes)
 
 **Validacija: Gimimo data ne ateityje**
@@ -904,10 +915,19 @@ END IF;
    - **Type:** `PL/SQL Function (returning Boolean)`
    - **PL/SQL Function Body:**
 ```sql
-RETURN :P6_DATE_OF_BIRTH <= SYSDATE;
+BEGIN
+    IF :P6_DATE_OF_BIRTH IS NULL THEN
+        RETURN TRUE;  -- Jei tuščia, kita validacija (Value Required) pasirūpins
+    ELSIF :P6_DATE_OF_BIRTH <= SYSDATE THEN
+        RETURN TRUE;
+    ELSE
+        RETURN FALSE;
+    END IF;
+END;
 ```
    - **Error Message:** `Gimimo data negali būti ateityje`
-   - **Associated Item:** `P6_DATE_OF_BIRTH`
+   - **Error → Associated Item:** `P6_DATE_OF_BIRTH`
+   - **Execution → When Button Pressed:** `- Select -`
 
 **Validacija: Telefono formatas**
 
@@ -917,10 +937,19 @@ RETURN :P6_DATE_OF_BIRTH <= SYSDATE;
    - **Type:** `PL/SQL Function (returning Boolean)`
    - **PL/SQL Function Body:**
 ```sql
-RETURN REGEXP_LIKE(:P6_PHONE_NUMBER, '^\+?[0-9\s\-]{9,20}$');
+BEGIN
+    IF :P6_PHONE_NUMBER IS NULL THEN
+        RETURN TRUE;  -- Jei tuščia, kita validacija pasirūpins
+    ELSIF REGEXP_LIKE(:P6_PHONE_NUMBER, '^\+?[0-9\s\-]{9,20}$') THEN
+        RETURN TRUE;
+    ELSE
+        RETURN FALSE;
+    END IF;
+END;
 ```
    - **Error Message:** `Neteisingas telefono formatas`
-   - **Associated Item:** `P6_PHONE_NUMBER`
+   - **Error → Associated Item:** `P6_PHONE_NUMBER`
+   - **Execution → When Button Pressed:** `- Select -`
 
 #### Procesų konfigūravimas
 
@@ -1757,3 +1786,4 @@ ORDER BY department_name, room_number, bed_number
 | 2025-12-14 | Pataisyta mygtukų (Buttons) konfigūracija su Database Action |
 | 2025-12-14 | Pridėtos nuorodos į oficialią Oracle APEX 22.1 dokumentaciją |
 | 2025-12-16 | Pataisytas Calendar Drag & Drop - pridėtas APEX$NEW_END_DATE klaidos sprendimas (ORA-20001) |
+| 2025-12-16 | Pataisytos validacijos - pridėta BEGIN/END blokas, When Button Pressed, Always Execute nustatymai |
