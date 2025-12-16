@@ -1164,6 +1164,44 @@ AND (:P11_DEPARTMENT_ID IS NULL OR department_id = :P11_DEPARTMENT_ID)
 
 3. **Attributes → Settings → Drag and Drop → PL/SQL Code:**
 
+> **SVARBU pagal Oracle APEX 22.1:** Jei nustatytas **End Date Column**, PL/SQL kodas **PRIVALO** naudoti `:APEX$NEW_END_DATE` bind kintamąjį. Jei jo nenaudosite, gausite klaidą:
+> ```
+> ORA-20001: Unable to bind "APEX$NEW_END_DATE". Use double quotes for multi byte items or verify length of item is 30 bytes or less.
+> ```
+
+**Variantas A: Su End Date Column (rekomenduojama)**
+
+Jei norite naudoti **End Date Column: `END_DATE`**, naudokite šį PL/SQL kodą:
+
+```sql
+DECLARE
+    l_start_date DATE;
+    l_end_date DATE;
+    l_duration_minutes NUMBER;
+BEGIN
+    -- Konvertuoti datos formatu YYYYMMDDHH24MISS
+    l_start_date := TO_DATE(:APEX$NEW_START_DATE, 'YYYYMMDDHH24MISS');
+    l_end_date := TO_DATE(:APEX$NEW_END_DATE, 'YYYYMMDDHH24MISS');
+
+    -- Apskaičiuoti trukmę minutėmis
+    l_duration_minutes := ROUND((l_end_date - l_start_date) * 24 * 60);
+
+    -- Atnaujinti vizito duomenis
+    UPDATE appointments
+    SET appointment_date = TRUNC(l_start_date),
+        appointment_time = TO_CHAR(l_start_date, 'HH24:MI'),
+        duration_minutes = GREATEST(l_duration_minutes, 15)  -- Minimali trukmė 15 min
+    WHERE appointment_id = :APEX$PK_VALUE;
+END;
+```
+
+**Variantas B: Be End Date Column**
+
+Jei **nenorite** naudoti pabaigos datos, **išvalykite End Date Column** nustatymą:
+- **Attributes → Settings → End Date Column:** `- Select -` (tuščias)
+
+Tada galite naudoti paprastesnį PL/SQL kodą:
+
 ```sql
 BEGIN
     -- Atnaujinti vizito datą ir laiką kai vartotojas perkelia įvykį kalendoriuje
@@ -1175,7 +1213,8 @@ BEGIN
 END;
 ```
 
-> **Dažna klaida:** Nenaudokite formato `YYYYMMDDHH24MI` (be sekundžių) - tai sukels klaidą!
+> **Dažna klaida #1:** Jei nustatytas End Date Column bet PL/SQL kodas nenaudoja `:APEX$NEW_END_DATE` - gausite `ORA-20001` klaidą!
+> **Dažna klaida #2:** Nenaudokite formato `YYYYMMDDHH24MI` (be sekundžių) - tai sukels klaidą!
 
 #### Filtravimo laukų pridėjimas
 
@@ -1717,3 +1756,4 @@ ORDER BY department_name, room_number, bed_number
 | 2025-12-14 | Pataisyta validacijų konfigūracija |
 | 2025-12-14 | Pataisyta mygtukų (Buttons) konfigūracija su Database Action |
 | 2025-12-14 | Pridėtos nuorodos į oficialią Oracle APEX 22.1 dokumentaciją |
+| 2025-12-16 | Pataisytas Calendar Drag & Drop - pridėtas APEX$NEW_END_DATE klaidos sprendimas (ORA-20001) |
